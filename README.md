@@ -12,9 +12,24 @@ Extract Markdown, images, and structured metadata from documents using Mistral O
 
 ## Installation
 
+Download the latest binary for your platform from the [Releases](https://github.com/your-username/ocr/releases) page.
+
+### macOS / Linux
+
 ```bash
-go build -o ocr .
+# Download (replace URL with the latest release for your platform)
+curl -L -o ocr https://github.com/your-username/ocr/releases/latest/download/ocr-darwin-arm64
+
+# Make executable
+chmod +x ocr
+
+# Move to a directory in your PATH (optional)
+sudo mv ocr /usr/local/bin/
 ```
+
+### Windows
+
+Download `ocr-windows-amd64.exe` from the [Releases](https://github.com/your-username/ocr/releases) page and add it to your PATH.
 
 ## Usage
 
@@ -41,6 +56,9 @@ ocr [options] <document>
 ## Examples
 
 ```bash
+# Set your Mistral API key (get one at https://console.mistral.ai/)
+export MISTRAL_API_KEY=your-api-key-here
+
 # Basic extraction
 ocr document.pdf
 
@@ -143,6 +161,16 @@ For the `-a` flag, provide a JSON file with your schema:
 
 - PDF
 - Images: PNG, JPEG, GIF, WebP
+
+## Building from Source
+
+Requires [Go](https://golang.org/dl/) 1.22 or later.
+
+```bash
+git clone https://github.com/your-username/ocr.git
+cd ocr
+go build -o ocr .
+```
 
 ## License
 
