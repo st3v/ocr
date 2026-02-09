@@ -226,4 +226,3 @@ func (c *Client) doRequest(ctx context.Context, ocrReq OCRRequest) (*OCRResponse
 
 	return &ocrResp, nil
 }
-
