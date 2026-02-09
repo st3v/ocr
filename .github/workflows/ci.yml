@@ -60,8 +60,9 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           SUFFIX: ${{ matrix.suffix }}
+          VERSION: ${{ github.ref_name }}
         run: |
-          go build -ldflags="-s -w" -o "ocr-${GOOS}-${GOARCH}${SUFFIX}" .
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o "ocr-${GOOS}-${GOARCH}${SUFFIX}" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+// version is set via ldflags at build time
+var version = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -24,6 +27,7 @@ func run() error {
 	annotationSchema := flag.String("a", "", "Extract document data using JSON schema file")
 	quiet := flag.Bool("q", false, "Quiet mode (suppress progress output)")
 	verbose := flag.Bool("v", false, "Verbose mode (extra details to stderr)")
+	showVersion := flag.Bool("version", false, "Print version and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `ocr - Extract Markdown, images, and image metadata from documents using LLMs
@@ -93,6 +97,11 @@ Examples:
 	}
 
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return nil
+	}
 
 	if flag.NArg() != 1 {
 		flag.Usage()
