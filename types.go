@@ -2,9 +2,23 @@ package main
 
 // OCRRequest represents the request body for the Mistral OCR API.
 type OCRRequest struct {
-	Model              string       `json:"model"`
-	Document           DocumentURL  `json:"document"`
-	IncludeImageBase64 bool         `json:"include_image_base64"`
+	Model                    string            `json:"model"`
+	Document                 DocumentURL       `json:"document"`
+	IncludeImageBase64       bool              `json:"include_image_base64"`
+	BBoxAnnotationFormat     *AnnotationFormat `json:"bbox_annotation_format,omitempty"`
+	DocumentAnnotationFormat *AnnotationFormat `json:"document_annotation_format,omitempty"`
+}
+
+// AnnotationFormat defines the schema for structured annotation extraction.
+type AnnotationFormat struct {
+	Type       string     `json:"type"`
+	JSONSchema JSONSchema `json:"json_schema"`
+}
+
+// JSONSchema defines the schema for annotation extraction.
+type JSONSchema struct {
+	Name   string `json:"name"`
+	Schema any    `json:"schema"`
 }
 
 // DocumentURL wraps the document data URL.
@@ -15,7 +29,8 @@ type DocumentURL struct {
 
 // OCRResponse represents the response from the Mistral OCR API.
 type OCRResponse struct {
-	Pages []Page `json:"pages"`
+	Pages              []Page `json:"pages"`
+	DocumentAnnotation any    `json:"document_annotation,omitempty"`
 }
 
 // Page represents a single page in the OCR response.
@@ -27,41 +42,13 @@ type Page struct {
 
 // Image represents an extracted image from the document.
 type Image struct {
-	ID           string `json:"id"`
-	TopLeftX     int    `json:"top_left_x"`
-	TopLeftY     int    `json:"top_left_y"`
-	BottomRightX int    `json:"bottom_right_x"`
-	BottomRightY int    `json:"bottom_right_y"`
-	ImageBase64  string `json:"image_base64"`
-}
-
-// ChatRequest represents a request to the Mistral chat/completions API.
-type ChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-}
-
-// ChatMessage represents a message in the chat request.
-type ChatMessage struct {
-	Role    string `json:"role"`
-	Content any    `json:"content"`
-}
-
-// ContentPart represents a part of multi-modal content.
-type ContentPart struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	ImageURL string `json:"image_url,omitempty"`
-}
-
-// ChatResponse represents the response from the chat/completions API.
-type ChatResponse struct {
-	Choices []ChatChoice `json:"choices"`
-}
-
-// ChatChoice represents a choice in the chat response.
-type ChatChoice struct {
-	Message ChatMessage `json:"message"`
+	ID              string `json:"id"`
+	TopLeftX        int    `json:"top_left_x"`
+	TopLeftY        int    `json:"top_left_y"`
+	BottomRightX    int    `json:"bottom_right_x"`
+	BottomRightY    int    `json:"bottom_right_y"`
+	ImageBase64     string `json:"image_base64"`
+	ImageAnnotation any    `json:"image_annotation,omitempty"`
 }
 
 // ImageMetadata contains extracted metadata for an image.

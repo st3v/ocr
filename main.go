@@ -21,6 +21,7 @@ func main() {
 func run() error {
 	outputDir := flag.String("o", "", "Output directory (default: same directory as input)")
 	extractMetadata := flag.Bool("m", false, "Extract image metadata (description, type, structured data)")
+	annotationSchema := flag.String("a", "", "Extract document data using JSON schema file")
 	quiet := flag.Bool("q", false, "Quiet mode (suppress progress output)")
 	verbose := flag.Bool("v", false, "Verbose mode (extra details to stderr)")
 
@@ -35,11 +36,11 @@ Description:
   - Embedded images saved to images/ directory
   - Optional image metadata: descriptions, types, and structured data
     extracted from charts, graphs, tables, and diagrams
+  - Optional document-level structured data extraction via JSON schema
 
   Supported formats: PDF, images (PNG, JPEG, GIF, WebP)
 
-  Currently uses Mistral OCR for text/image extraction and Pixtral for
-  image analysis. Model backends may become pluggable in future versions.
+  Uses Mistral OCR with built-in annotation support for structured extraction.
 
   Prints the path to the output Markdown file on stdout.
   Progress messages are written to stderr.
@@ -50,22 +51,25 @@ Options:
 		fmt.Fprintf(os.Stderr, `
 Output Structure:
   <output-dir>/
-  ├── <basename>.md           # Extracted text in Markdown format
+  ├── <basename>.md              # Extracted text in Markdown format
+  ├── <basename>.annotation.json # Document annotation (with -a flag)
   └── images/
-      ├── page_0_img_0.png    # Extracted images
-      ├── page_0_img_0.json   # Image metadata (with -m flag)
+      ├── page_0_img_0.png       # Extracted images
+      ├── page_0_img_0.json      # Image metadata (with -m flag)
       └── ...
 
-Metadata JSON Format (with -m flag):
+Image Metadata JSON Format (with -m flag):
   {
     "description": "Brief description of image contents",
     "type": "graph|chart|diagram|table|photo|illustration|screenshot|other",
     "structured_data": { ... } or null
   }
 
-  For graphs/charts, structured_data includes: chart_type, title, axes, data_series
-  For tables: headers, rows
-  For photos/illustrations: null
+Document Schema File Format (for -a flag):
+  {
+    "name": "schema_name",
+    "schema": { <JSON Schema object> }
+  }
 
 Environment:
   MISTRAL_API_KEY   Required. API key for Mistral AI.
@@ -80,9 +84,12 @@ Examples:
   %s -m document.pdf
       Extract with image metadata analysis
 
-  %s -q -m document.pdf
-      Extract with metadata, suppress progress output
-`, os.Args[0], os.Args[0], os.Args[0], os.Args[0])
+  %s -a invoice_schema.json invoice.pdf
+      Extract with document-level structured data
+
+  %s -m -a schema.json document.pdf
+      Extract with both image and document annotations
+`, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 	}
 
 	flag.Parse()
@@ -115,10 +122,24 @@ Examples:
 	report := NewReporter(os.Stderr, *quiet, *verbose)
 	baseName := strings.TrimSuffix(filepath.Base(docPath), filepath.Ext(docPath))
 
+	// Build OCR options
+	opts := OCROptions{
+		ExtractImageMetadata: *extractMetadata,
+	}
+
+	// Load document schema if specified
+	if *annotationSchema != "" {
+		schema, err := loadDocumentSchema(*annotationSchema)
+		if err != nil {
+			return fmt.Errorf("loading schema file: %w", err)
+		}
+		opts.DocumentSchema = schema
+	}
+
 	report.Progress("Processing: %s\n", docPath)
 
 	client := NewClient(apiKey)
-	resp, err := client.ProcessPDF(context.Background(), docPath)
+	resp, err := client.ProcessDocument(context.Background(), docPath, opts)
 	if err != nil {
 		return err
 	}
@@ -134,14 +155,38 @@ Examples:
 
 	report.Verbose("Wrote text to: %s\n", textPath)
 
+	// Write document annotation if present
+	if resp.DocumentAnnotation != nil {
+		annotationPath := filepath.Join(outDir, baseName+".annotation.json")
+		if err := saveAnnotation(resp.DocumentAnnotation, annotationPath); err != nil {
+			return fmt.Errorf("writing document annotation: %w", err)
+		}
+		report.Verbose("Wrote document annotation to: %s\n", annotationPath)
+	}
+
 	if imageCount > 0 {
-		if err := extractImages(resp, outDir, client, *extractMetadata, report); err != nil {
+		if err := extractImages(resp, outDir, *extractMetadata, report); err != nil {
 			return err
 		}
 	}
 
 	fmt.Println(textPath)
 	return nil
+}
+
+// loadDocumentSchema reads and parses a JSON schema file.
+func loadDocumentSchema(path string) (*JSONSchema, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var schema JSONSchema
+	if err := json.Unmarshal(data, &schema); err != nil {
+		return nil, err
+	}
+
+	return &schema, nil
 }
 
 func extractText(resp *OCRResponse) (string, int) {
@@ -157,7 +202,7 @@ func extractText(resp *OCRResponse) (string, int) {
 	return b.String(), imageCount
 }
 
-func extractImages(resp *OCRResponse, outDir string, client *Client, extractMetadata bool, report *Reporter) error {
+func extractImages(resp *OCRResponse, outDir string, extractMetadata bool, report *Reporter) error {
 	imagesDir := filepath.Join(outDir, "images")
 	if err := os.MkdirAll(imagesDir, 0755); err != nil {
 		return fmt.Errorf("creating images directory: %w", err)
@@ -178,19 +223,15 @@ func extractImages(resp *OCRResponse, outDir string, client *Client, extractMeta
 
 			report.Verbose("Wrote image: %s\n", imgPath)
 
-			if extractMetadata {
-				report.Progress("\rAnalyzing image %d/%d...", imgIndex+1, imageCount)
-				if err := analyzeAndSaveMetadata(client, img, imgPath); err != nil {
-					fmt.Fprintf(os.Stderr, "\nError: %v\n", err)
+			// Save annotation metadata if present (from bbox_annotation_format)
+			if extractMetadata && img.ImageAnnotation != nil {
+				if err := saveAnnotationMetadata(img.ImageAnnotation, imgPath); err != nil {
+					fmt.Fprintf(os.Stderr, "Error saving metadata for %s: %v\n", imgPath, err)
 				}
 			}
 
 			imgIndex++
 		}
-	}
-
-	if extractMetadata {
-		report.Progress("\rAnalyzing image %d/%d... done\n", imageCount, imageCount)
 	}
 
 	return nil
@@ -238,26 +279,34 @@ func imageExtension(dataURL string) string {
 	}
 }
 
-func analyzeAndSaveMetadata(client *Client, img Image, imgPath string) error {
-	imageDataURL := img.ImageBase64
-	if !strings.HasPrefix(imageDataURL, "data:") {
-		imageDataURL = "data:image/png;base64," + imageDataURL
+// saveAnnotation writes an annotation to a file, handling string-encoded JSON.
+func saveAnnotation(annotation any, path string) error {
+	var data []byte
+	var err error
+
+	// If the annotation is a string, it's already JSON - parse and re-format it
+	if str, ok := annotation.(string); ok {
+		var parsed any
+		if err := json.Unmarshal([]byte(str), &parsed); err != nil {
+			return fmt.Errorf("parsing annotation JSON string: %w", err)
+		}
+		data, err = json.MarshalIndent(parsed, "", "  ")
+	} else {
+		data, err = json.MarshalIndent(annotation, "", "  ")
 	}
 
-	metadata, err := client.AnalyzeImage(context.Background(), imageDataURL)
 	if err != nil {
-		return fmt.Errorf("analyzing image %s: %w", imgPath, err)
+		return fmt.Errorf("marshaling annotation: %w", err)
 	}
 
-	metadataJSON, err := json.MarshalIndent(metadata, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	metadataPath := strings.TrimSuffix(imgPath, filepath.Ext(imgPath)) + ".json"
-	if err := os.WriteFile(metadataPath, metadataJSON, 0644); err != nil {
-		return fmt.Errorf("writing metadata: %w", err)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("writing annotation: %w", err)
 	}
 
 	return nil
+}
+
+func saveAnnotationMetadata(annotation any, imgPath string) error {
+	metadataPath := strings.TrimSuffix(imgPath, filepath.Ext(imgPath)) + ".json"
+	return saveAnnotation(annotation, metadataPath)
 }
