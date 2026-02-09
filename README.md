@@ -12,24 +12,37 @@ Extract Markdown, images, and structured metadata from documents using Mistral O
 
 ## Installation
 
-Download the latest binary for your platform from the [Releases](https://github.com/your-username/ocr/releases) page.
+Download the latest binary for your platform from the [Releases](https://github.com/st3v/ocr/releases) page.
 
-### macOS / Linux
+### macOS
 
 ```bash
-# Download (replace URL with the latest release for your platform)
-curl -L -o ocr https://github.com/your-username/ocr/releases/latest/download/ocr-darwin-arm64
+# Apple Silicon
+curl -L -o ocr https://github.com/st3v/ocr/releases/latest/download/ocr-darwin-arm64
 
-# Make executable
-chmod +x ocr
+# Intel
+curl -L -o ocr https://github.com/st3v/ocr/releases/latest/download/ocr-darwin-amd64
 
-# Move to a directory in your PATH (optional)
-sudo mv ocr /usr/local/bin/
+# Make executable and move to PATH
+chmod +x ocr && sudo mv ocr /usr/local/bin/
+```
+
+### Linux
+
+```bash
+# x86_64
+curl -L -o ocr https://github.com/st3v/ocr/releases/latest/download/ocr-linux-amd64
+
+# ARM64
+curl -L -o ocr https://github.com/st3v/ocr/releases/latest/download/ocr-linux-arm64
+
+# Make executable and move to PATH
+chmod +x ocr && sudo mv ocr /usr/local/bin/
 ```
 
 ### Windows
 
-Download `ocr-windows-amd64.exe` from the [Releases](https://github.com/your-username/ocr/releases) page and add it to your PATH.
+Download [`ocr-windows-amd64.exe`](https://github.com/st3v/ocr/releases/latest/download/ocr-windows-amd64.exe) and add it to your PATH.
 
 ## Usage
 
@@ -167,7 +180,7 @@ For the `-a` flag, provide a JSON file with your schema:
 Requires [Go](https://golang.org/dl/) 1.22 or later.
 
 ```bash
-git clone https://github.com/your-username/ocr.git
+git clone https://github.com/st3v/ocr.git
 cd ocr
 go build -o ocr .
 ```
